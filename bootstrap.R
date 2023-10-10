@@ -35,17 +35,24 @@ head(abalone)
 a <- c(1,2,10,50,1,1,90,100,1)
 b <- quantile(a, c(0.5,0.95))
 
-b[[2]
+
 
 # Função pika -------------------------------------------------------------
 
 # calcular nessa função também os ics e retornar uma lista
-Bootstrap <- function(N,enes,var,banco= abalone, conf.level=0.95)
+Bootstrap <- function(N,enes,var,banco= abalone, conf.level=0.95, seed=NULL)
 {
   est_bootstrap <- data.frame('media' = rep(NA, 10), 'mediana' = NA, 'erro_media' = NA, 'erro_mediana' = NA, 'vicio_media' = NA, 'vicio_mediana' = NA, 'EQM_media' = NA, 'EQM_mediana' = NA,  'n' = NA)
   
+  ICs_media   <-  data.frame('Tipo_IC' = rep(NA,40*length(conf.level)), 'LI'= NA, 'LS' = NA, n = NA)
+  ICs_mediana <-  data.frame('Tipo_IC' = rep(NA,40*length(conf.level)), 'LI'= NA, 'LS' = NA, n = NA)
+    
+    
   media_global   <- mean(banco[[var]])
   mediana_global <- median(banco[[var]])
+  
+  if(!is.null(seed)){set.seed(seed)}
+  
   
   amostras <- lapply(enes, banco = banco, var = var, N = N,
                      FUN = function(x, banco, var,N){
@@ -77,10 +84,48 @@ Bootstrap <- function(N,enes,var,banco= abalone, conf.level=0.95)
 
     est_bootstrap[i/enes[1], ] <- valores
     
-    # Intervalos de confiança
-    quantils <- quantile(estatistiscas, c(1-conf.level, conf.level))
-    
-    
+    # Intervalos de confiança ---
+    for(conf_index in 1:length(conf.level)){
+      
+      conf <- conf.level[conf_index]
+        # Normal
+        IC_norm_mean   <- c(valores[1] - qnorm(conf)*valores[3], valores[1] + qnorm(conf)*valores[3])
+        IC_norm_median <- c(valores[2] - qnorm(conf)*valores[4], valores[2] + qnorm(conf)*valores[4])
+        
+        # Percentil Reverso (básico)
+        Q <- quantile(estatistiscas, c(1-conf, conf))
+        
+        IC_perc_mean <-   c(2*valores[1] - Q[[1]], 2*valores[1] - Q[[2]])
+        IC_perc_median <- c(2*valores[2] - Q[[1]], 2*valores[2] - Q[[2]])
+        
+        # t-Student
+        
+        IC_t_mean   <- c(valores[1] - qt(conf, i -1 )*valores[3],
+                         valores[1] + qt(conf, i -1)*valores[3])
+        IC_t_median <- c(valores[2] - qt(conf, i -1)*valores[4],
+                         valores[2] + qt(conf, i -1)*valores[4])   
+        
+        # BCA
+        IC_bca_mean   <- c(NA, NA)
+        IC_bca_median <- c(NA, NA)
+        
+        # jutando todos
+        
+        norm_name <- paste0('Normal_', conf)
+        perc_name <- paste0('Percentil_', conf)
+        t_name <- paste0('t_', conf)
+        bca_name <- paste0('BCA_', conf)
+        
+        ICs_media[i/enes[1] + (conf_index -1)*40, ]       <- c(norm_name,IC_norm_mean,i)
+        ICs_media[i/enes[1] +10 + (conf_index -1)*40, ]   <- c(perc_name,IC_perc_mean,i)   
+        ICs_media[i/enes[1] +20 + (conf_index -1)*40, ]   <- c(t_name,IC_t_mean,i)
+        ICs_media[i/enes[1] +30 + (conf_index -1)*40, ]   <- c(bca_name,IC_bca_mean,i)
+        
+        ICs_mediana[i/enes[1] + (conf_index -1)*40, ]       <- c(norm_name,IC_norm_median,i)
+        ICs_mediana[i/enes[1] +10 + (conf_index -1)*40, ]   <- c(perc_name,IC_perc_median,i)   
+        ICs_mediana[i/enes[1] +20 + (conf_index -1)*40, ]   <- c(t_name,IC_t_median,i)
+        ICs_mediana[i/enes[1] +30 + (conf_index -1)*40, ]   <- c(bca_name,IC_bca_median,i)
+    }
     
     jpeg(filename = paste0('img/tend_central_', i, '.jpg' ), width = 1080, height = 720, quality = 100)
     par(mfrow = c(1,2), mar = c(5, 5, 4, 6))
@@ -107,40 +152,16 @@ Bootstrap <- function(N,enes,var,banco= abalone, conf.level=0.95)
     
   }
   
-  return(est_bootstrap)
+  output <- list('estimativas' = est_bootstrap, 'IC_media' = ICs_media, 'IC_mediana' = ICs_mediana)
+  
+  return(output)
   
 }
 
-dados <- Bootstrap(100, seq(20,200,20), 'diameter')
+dados <- Bootstrap(100, seq(20,200,20), 'diameter', conf.level =  c(0.9, 0.95, 0.99))
 dados
-
 
 # Intervalo de confiança --------------------------------------------------
 
 # Determinar os intervalos de 90%, 95% e 99% via bootstrap usando os tipos "normal", "percentil", "t de Student" e "BCA". Todos devem ser implementados na mão, sem uso de pacotes.
-help("t.test")
-IC <- function(dados, var, IC = c('normal', 'percentil', 't', 'BCA'), conf.level= 0.95)
-{
-  
-  if(var == 'media')
-  {
-    variavel <- dados['media']
-    erro     <- dados['erro_media']
-    vicio    <- dados['vicio_media']
-    eqm      <- dados['EQM_media']
-  }
-  else if(var == 'mediana')
-  {
-    variavel <- dados['mediana']
-    erro     <- dados['erro_mediana']
-    vicio    <- dados['vicio_mediana']
-    eqm      <- dados['EQM_mediana']
-  }
-  
-  if(IC == 'normal')
-  {
-   IC <- c(variavel - qnorm(conf.level)*erro, variavel + qnorm(conf.level)*erro) 
-  }  
-  
-  
-}
+
