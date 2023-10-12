@@ -23,6 +23,8 @@
 
 #sex, length, height, whole weight, shucked weight, viscera weight, shell weight
 
+
+
 abalone <- read.csv('Abalone.txt')
 str(abalone)
 
@@ -162,6 +164,7 @@ Bootstrap <- function(N,enes,var,banco= abalone, conf.level=0.95, seed=NULL)
 
 # diametrer ----------------------------------------------------------------
 
+# Não foi possível usar N= 1.000.000 por falta de RAM, foi utilizado 700.000 repetições
 diameter <- Bootstrap(10000, seq(20,200,20), 'diameter', conf.level =  c(0.9, 0.95, 0.99))
 
 
