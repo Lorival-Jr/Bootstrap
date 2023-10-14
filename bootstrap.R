@@ -63,6 +63,7 @@ Bootstrap <- function(N,enes,var,banco= abalone, conf.level=0.95, seed=NULL)
                        return(amostra)
                      }
   )
+
   
   for(i in enes)
   {
@@ -70,8 +71,32 @@ Bootstrap <- function(N,enes,var,banco= abalone, conf.level=0.95, seed=NULL)
     estatistiscas <- lapply(split(amostras[[i/enes[1]]], ceiling(seq_along(amostras[[i/enes[1]]])/i)), 
                             FUN = function(x)
                             {return(c(mean(x), median(x)))})
+    
+    Jackknife  <- function(amostras) {
+      estatisticas <- lapply(amostras, function(x) {
+        amostra_jk <- lapply(seq_along(x), function(j) x[-j])
+        
+        mean_jk <- sapply(amostra_jk, mean)
+        median_jk <- sapply(amostra_jk, median)
+        
+        diffs <- list(
+          media = mean_jk - mean(mean_jk),
+          mediana = median_jk - median(median_jk)
+        )
+        
+        return(diffs)
+      })
+      
+      return(estatisticas)
+    }
+    
+    JK_estimativas <- Jackknife(split(amostras[[i/enes[1]]], ceiling(seq_along(amostras[[i/enes[1]]])/i)))
+    
 
     estatistiscas <- do.call(rbind, estatistiscas)
+
+    medias_jk    <- lapply(JK_estimativas, function(x) x$media)
+    medianas_jk  <- lapply(JK_estimativas, function(x) x$mediana)
 
     valores <-  c(mean(estatistiscas[,1]), median(estatistiscas[,2]), # media e mediana
                   sd(estatistiscas[,1]), # Erro media
@@ -101,16 +126,52 @@ Bootstrap <- function(N,enes,var,banco= abalone, conf.level=0.95, seed=NULL)
         IC_perc_mean <-   c(2*valores[1] - Q1[[2]], 2*valores[1] - Q1[[1]])
         IC_perc_median <- c(2*valores[2] - Q2[[2]], 2*valores[2] - Q2[[1]])
         
-        # t-Student
+        # t-Student ---
         
         IC_t_mean   <- c(valores[1] - qt(conf, i -1 )*valores[3],
                          valores[1] + qt(conf, i -1)*valores[3])
         IC_t_median <- c(valores[2] - qt(conf, i -1)*valores[4],
                          valores[2] + qt(conf, i -1)*valores[4])   
         
+        # BCA ---
+        
+        # Calculo do gama
+        gama_sup     <- lapply(medias_jk, FUN = function(x){sum(x^3)})
+        gama_inf     <- lapply(medias_jk, FUN = function(x){sum(x^2)^1.5 * 6})
+        
+        gama_sup     <- do.call(rbind, gama_sup)
+        gama_inf     <- do.call(rbind, gama_inf)
+        gama_inf[gama_inf == 0] <- 1
+        gama_media   <- mean(gama_sup/gama_inf)
+        
+        
+        gama_sup     <- lapply(medianas_jk, FUN = function(x){sum(x^3)})
+        gama_inf     <- lapply(medianas_jk, FUN = function(x){sum(x^2)^1.5 * 6})
+        
+        gama_sup     <- do.call(rbind, gama_sup)
+        gama_inf     <- do.call(rbind, gama_inf)
+        gama_inf[gama_inf == 0] <- 1
+
+        gama_mediana <- mean(gama_sup/gama_inf)
+        
+
+        
+        # calculo do intervalo
+        z0_media   <- qnorm(mean(estatistiscas[,1] <= media_global))
+        z0_mediana <- qnorm(mean(estatistiscas[,2] <= mediana_global))
+        
+        z1 <- qnorm((1 - conf)/2)
+        z2 <- qnorm(conf + (1-conf)/2)
+        
+        alpha1_media <- pnorm(z0_media + (z0_media + z1)/(1- gama_media*(z0_media + z1)))
+        alpha2_media <- pnorm(z0_media + (z0_media + z2)/(1- gama_media*(z0_media + z2)))
+        
+        alpha1_mediana <- pnorm(z0_mediana + (z0_mediana + z1)/(1- gama_mediana*(z0_mediana + z1)))
+        alpha2_mediana <- pnorm(z0_mediana + (z0_mediana + z2)/(1- gama_mediana*(z0_mediana + z2)))
+      
         # BCA
-        IC_bca_mean   <- c(NA, NA)
-        IC_bca_median <- c(NA, NA)
+        IC_bca_mean   <- quantile(estatistiscas[,1], c(alpha1_media, alpha2_media))
+        IC_bca_median <- quantile(estatistiscas[,2], c(alpha1_mediana, alpha2_mediana))
         
         # jutando todos
         
@@ -162,11 +223,21 @@ Bootstrap <- function(N,enes,var,banco= abalone, conf.level=0.95, seed=NULL)
 }
 
 
+
+
+
+
+
+
+library(parallel)
+cl <- makeCluster(detectCores() - 2)
+
 # diametrer ----------------------------------------------------------------
 
 # Não foi possível usar N= 1.000.000 por falta de RAM, foi utilizado 700.000 repetições
-diameter <- Bootstrap(10000, seq(20,200,20), 'diameter', conf.level =  c(0.9, 0.95, 0.99))
-
+diameter <- Bootstrap(500000, seq(20,200,20), 'diameter', conf.level =  c(0.9, 0.95, 0.99), seed = 9999)
+save(diameter, file='diameter.RData')
+load('diameter.RData')
 
 as.numeric(diameter$IC_media$LI[1:40]) < mean(abalone$diameter) & mean(abalone$diameter) < as.numeric(diameter$IC_media$LS[1:40])
 # OU seja com 0.9 de confiança todos intervalos contém o parametro verdadeiro da media
@@ -194,8 +265,8 @@ as.numeric(diameter$IC_mediana$LI[81:120]) < median(abalone$diameter) &
 
 
 
-whole.weight <- Bootstrap(10000, seq(20,200,20), 'whole_weight', conf.level =  c(0.9, 0.95, 0.99))
-
+whole.weight <- Bootstrap(500000, seq(20,200,20), 'whole_weight', conf.level =  c(0.9, 0.95, 0.99), seed = 9999)
+save(whole.weight, file='whole.weight.RData')
 
 as.numeric(whole.weight$IC_media$LI[1:40]) < mean(abalone$whole_weight) & mean(abalone$whole_weight) < as.numeric(whole.weight$IC_media$LS[1:40])
 # OU seja com 0.9 de confiança todos intervalos contém o parametro verdadeiro da media
@@ -223,8 +294,8 @@ as.numeric(whole.weight$IC_mediana$LI[81:120]) < median(abalone$whole_weight) &
 
 # lenght ------------------------------------------------------------------
 
-length <- Bootstrap(10000, seq(20,200,20), 'length', conf.level =  c(0.9, 0.95, 0.99))
-
+length <- Bootstrap(500000, seq(20,200,20), 'length', conf.level =  c(0.9, 0.95, 0.99), seed = 9999)
+save(length, file='length.RData')
 
 as.numeric(length$IC_media$LI[1:40]) < mean(abalone$length) &
   mean(abalone$length) < as.numeric(length$IC_media$LS[1:40])
@@ -252,6 +323,10 @@ as.numeric(length$IC_mediana$LI[81:120]) < median(abalone$length) &
 
 
 # Análise das medidas Dianóstico ------------------------------------------
+
+load('Rdatas\diameter.Rdata')
+load('Rdatas\whole.weight.Rdata')
+load('Rdatas\length.Rdata')
 
 diameter$estimativas
 whole.weight$estimativas
@@ -316,8 +391,8 @@ grafico_diag <- function(var, ylab, ylim=NULL, linha_0 = TRUE, arquivo = 'lixo')
            lwd = 2)  
 }
 
-whole.weight$estimativas
-grafico_diag(var = 'vicio_media',ylab = 'Vício', arquivo = 'vicio_media')
+
+grafico_diag(var = 'vicio_media',ylab = 'Vício', arquivo = 'vicio_media', ylim=c(-2e-4,3e-4))
 # O vício para media é baixo, e conforme o n aumenta ele se aproxima de zero
 grafico_diag(var = 'vicio_mediana',ylab = 'Vício', ylim = c(-0.0025, 0.0008), arquivo = 'vicio_mediana')
 # O vício para mediana é baixo, e conforme o n aumenta ele se aproxima de zero
@@ -326,8 +401,8 @@ grafico_diag(var = 'erro_media',ylab = 'Erro', arquivo = 'erro_media', ylim = c(
 # Erro para media é baixo, e conforme o n aumenta ele diminui
 grafico_diag(var = 'erro_mediana',ylab = 'Erro', ylim = c(0,0.15), arquivo = 'erro_mediana')
 # Erro para mediana é baixo, e conforme o n aumenta ele diminui
-grafico_diag(var = 'EQM_media',ylab = 'EQM', arquivo = 'EQM_media')
+grafico_diag(var = 'EQM_media',ylab = 'EQM', arquivo = 'EQM_media', ylim= c(0, 5.5e-8))
 # O EQM da media é minusculo, aproximadamente 0.0000006 para whole.weight em n = 20, conforme n aumenta ele estabiliza em 0
-grafico_diag(var = 'EQM_mediana',ylab = 'EQM', ylim = c(0, 8e-6), arquivo = 'EQM_mediana')
+grafico_diag(var = 'EQM_mediana',ylab = 'EQM', ylim = c(0, 7e-6), arquivo = 'EQM_mediana')
 # O EQM da mediana é minusculo, aproximadamente 0.000006, mesmo para n =20, conforme n aumenta ele estabiliza em 0
 
