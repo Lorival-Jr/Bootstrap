@@ -13,9 +13,11 @@ output:
 knitr::opts_chunk$set(eval = FALSE)
 ```
 
-## 1.Introdução:
 
-## 1.1Método Bootstrap:
+# 1. Introdução
+
+
+## 1.1. Método Bootstrap
 
 - Os métodos de Bootstrap são uma classe de métodos de Monte Carlo não paramétricos, que estimam a distribuição de uma população por reamostragem.
 
@@ -73,7 +75,7 @@ A estimativa do erro padrão de um estimador $\hat{\theta}$ via bootstrap é o d
 $$se\hat{\theta^{*}}=\sqrt{\frac{1}{B - 1}\sum_{b = 1}^{B}(\hat{\theta}^{(b)} - \bar{\hat{\theta}}^{*}})$$
 <br><br>
 
-## 1.2 - Código do Bootstrap:
+# 2. Código do Bootstrap
 
 **Visualizando o banco:**
 
@@ -83,8 +85,11 @@ abalone <- read.csv('Abalone.txt')
 names(abalone) <- c('sex', 'length', 'diameter', 'height', 'whole_weight', 'shucked_weight', 'viscera_weight', 'shell_weight', 'rings')
 
 head(abalone)
-
+dim(abalone)
 ```
+O banco possui 9 colunas e 4176 linhas, as colunas de interesse serão 'diameter', 'length' e 'whole_weight'.
+
+
 
 <br><br>
 Foi criada uma função para calcular as estimativas Bootstrap e também os Intervalos de Confiança normal 
@@ -92,7 +97,7 @@ t-student, pecentil e bca. Isso com a possibilidade de variar o número de repet
 
 ```{r, eval = T}
 
-# calcular nessa função também os ics e retornar uma lista
+# função calcula as estimativas Bootstrap, faz os histogramas das estimativas e também os ics, retornando uma lista
 Bootstrap <- function(N,enes,var,banco= abalone, conf.level=0.95, seed=NULL)
 {
   est_bootstrap <- data.frame('media' = rep(NA, 10), 'mediana' = NA, 'erro_media' = NA, 'erro_mediana' = NA, 'vicio_media' = NA, 'vicio_mediana' = NA, 'EQM_media' = NA, 'EQM_mediana' = NA,  'n' = NA)
@@ -274,9 +279,9 @@ Bootstrap <- function(N,enes,var,banco= abalone, conf.level=0.95, seed=NULL)
 }
 
 ```
+<br><br>
 
-
-## 1.3 - Explicando o código parte a parte:
+## 2.1. Explicando o código parte a parte:
 
 Primeiramente, no código abaixo, foi preparado a saída de dados, com três dataframes e calculado a média e a mediana global.
 
@@ -293,7 +298,7 @@ Bootstrap <- function(N,enes,var,banco= abalone, conf.level=0.95, seed=NULL)
   mediana_global <- median(banco[[var]])
 
 ```
-
+<br>
 
 Na parte do código abaixo, caso na função tenha sido passado uma seed, é definido a seed e após isso são feitas as amostras Bootstrap, que são calculadas todas de uma vez baseadas em uma uniforme discretizada.
 
@@ -309,6 +314,7 @@ if(!is.null(seed)){set.seed(seed)}
                      }
   )
 ```
+<br>
 
 Nesta parte, o `for` percorre todos os tamanhos de amostras passados, a variável `estatisticas` pega as amostras calculadas anteriormente, as divide baseada no n e retorna a média e a mediana dessas amostras. O jackknife será usado para cálculo do intervalo BCA, pegando as amostras, retirando um valor, calculando as estatísticas e fazendo a diferença entre a média da amostra e a média das médias jackknife, após isso, é feito o mesmo para a mediana, o processo é repetido devolvendo o valor retirado e retirando outro.
 
@@ -339,7 +345,7 @@ for(i in enes)
     }
   
 ```
-
+<br>
 
 A variável `JK_estimativas`, aplica a função criada anteriormente, `estatisticas` junta o retorno do lapply `estatisticas` anterior, `medias_jk` e `medianas_jk` são as estatisticas jackknife, em valores organizamos a saída de dados e o adicionamos no dataframe `est_boostrap`.  
 
@@ -366,7 +372,7 @@ JK_estimativas <- Jackknife(split(amostras[[i/enes[1]]], ceiling(seq_along(amost
     est_bootstrap[i/enes[1], ] <- valores
     
 ```
-
+<br>
 
 O `for` passa pelas confianças e calcula os intervalos de confiança que são calculados baseados nas suas próprias fórmulas e são adicionados aos dataframes criados inicialmente.
 
@@ -452,7 +458,7 @@ O `for` passa pelas confianças e calcula os intervalos de confiança que são c
     }
     
 ```
-
+<br>
 
 Foram feitos os histogramas das estimativas Bootstrap e após isso, foi retornado os dataframes criados.
 
@@ -489,6 +495,7 @@ jpeg(filename = paste0('img/tend_central_', i, '.jpg' ), width = 1080, height = 
 }
 
 ```
+<br><br>
 
 Uso da função para a variável `diameter`
 
@@ -502,8 +509,8 @@ save(diameter, file='diameter.RData')
 
 Todos os intervalos de confiança contiveram o verdadeiro valor do parâmetro
 
-```{r, eval = F}
-load('.\Rdatas\diameter.RData')
+```{r, eval = T}
+load('./Rdatas/diameter.RData')
 
 as.numeric(diameter$IC_media$LI[1:40]) < mean(abalone$diameter) & mean(abalone$diameter) < as.numeric(diameter$IC_media$LS[1:40])
 # OU seja com 0.9 de confiança todos intervalos contém o parametro verdadeiro da media
@@ -528,15 +535,14 @@ as.numeric(diameter$IC_mediana$LI[81:120]) < median(abalone$diameter) &
 
 
 ```
-
+<br><br>
 
 Uso da função para a variável `Whole.weight`
 
 ```{r}
 # Whole.weight ------------------------------------------------------------
 
-
-
+# Não foi possível usar N= 1.000.000 por falta de RAM, foi utilizado 500000 repetições
 whole.weight <- Bootstrap(500000, seq(20,200,20), 'whole_weight', conf.level =  c(0.9, 0.95, 0.99), seed = 9999)
 save(whole.weight, file='whole.weight.RData')
 ```
@@ -545,8 +551,9 @@ save(whole.weight, file='whole.weight.RData')
 Todos os intervalos de confiança contiveram o verdadeiro valor do parâmetro
 
 
-```{r}
+```{r, eval = T}
 
+load('./Rdatas/whole.weight.RData')
 as.numeric(whole.weight$IC_media$LI[1:40]) < mean(abalone$whole_weight) & mean(abalone$whole_weight) < as.numeric(whole.weight$IC_media$LS[1:40])
 # OU seja com 0.9 de confiança todos intervalos contém o parametro verdadeiro da media
 
@@ -570,7 +577,48 @@ as.numeric(whole.weight$IC_mediana$LI[81:120]) < median(abalone$whole_weight) &
 # OU seja com 0.99 de confiança todos intervalos contém o parametro verdadeiro da mediana
 
 ```
+<br><br>
 
+```{r}
+# lenght ------------------------------------------------------------------
+
+# Não foi possível usar N= 1.000.000 por falta de RAM, foi utilizado 500000 repetições
+length <- Bootstrap(500000, seq(20,200,20), 'length', conf.level =  c(0.9, 0.95, 0.99), seed = 9999)
+save(length, file='length.RData')
+
+
+```
+
+
+```{r, eval = T}
+load('./Rdatas/length.RData')
+as.numeric(length$IC_media$LI[1:40]) < mean(abalone$length) &
+  mean(abalone$length) < as.numeric(length$IC_media$LS[1:40])
+# OU seja com 0.9 de confiança todos intervalos contém o parametro verdadeiro da media
+
+as.numeric(length$IC_media$LI[41:80]) < mean(abalone$length) &
+  mean(abalone$length) < as.numeric(length$IC_media$LS[41:80])
+# OU seja com 0.95 de confiança todos intervalos contém o parametro verdadeiro da media
+
+as.numeric(length$IC_media$LI[81:120]) < mean(abalone$length) &
+  mean(abalone$length) < as.numeric(length$IC_media$LS[81:120])
+# OU seja com 0.99 de confiança todos intervalos contém o parametro verdadeiro da media
+
+as.numeric(length$IC_mediana$LI[1:40]) < median(abalone$length) &
+  mean(abalone$length) < as.numeric(length$IC_mediana$LS[1:40])
+# OU seja com 0.9 de confiança todos intervalos contém o parametro verdadeiro da mediana
+
+as.numeric(length$IC_mediana$LI[41:80]) < median(abalone$length) &
+  mean(abalone$length) < as.numeric(length$IC_mediana$LS[41:80])
+# OU seja com 0.95 de confiança todos intervalos contém o parametro verdadeiro da mediana
+
+as.numeric(length$IC_mediana$LI[81:120]) < median(abalone$length) &
+  mean(abalone$length) < as.numeric(length$IC_mediana$LS[81:120])
+# OU seja com 0.99 de confiança todos intervalos contém o parametro verdadeiro da mediana
+
+
+```
+<br><br>
 
 
 
@@ -664,219 +712,62 @@ grafico_diag(var = 'EQM_mediana',ylab = 'EQM', ylim = c(0, 7e-6), arquivo = 'EQM
 # O EQM da mediana é minusculo, aproximadamente 0.000006, mesmo para n =20, conforme n aumenta ele estabiliza em 0
 
 ```
+<br><br>
 
-## 1.4 - Gráficos relacionados ao Modelo Bootstrap:
+## 2.2. Medidas diagnósticas para o Método Bootstrap
+
+
+![](img\vicio_media.jpg){}
+![](img\vicio_mediana.jpg){}
+
+O vício tanto para media e mediana é baixo e muito próximo de zero, e conforme o n aumenta ele se aproxima de zero.
+<br>
+
+
 
 ![](img\EQM_media.jpg){}
 ![](img\EQM_mediana.jpg){}
+O EQM tanto para media e mediana é baixo e muito próximo de zero, e conforme o n aumenta ele se aproxima de zero.
+<br>
+
+
 ![](img\erro_media.jpg){}
-![](img\erro_mediana.jpg){}
+![](img\erro_mediana.jpg)
 
-## 2 - Método Jackknife:
+O erro, entre as medidas diagnósticas analisadas, foi o que ficou mais longe de zero, mas ainda bem próximo, sendo manor que 0.2 mesmo em seu máximo, tanto para media e mediana é próximo de zero, e conforme o n aumenta ele se aproxima mais de zero.
 
+<br><br>
 
-- Canivete suiço.
+# 3. Tempo Comupaticional
 
-- Equipado com várias ferramentas, fácil transporte.
+O tempo foi medido com base nas funções `tic()` e `toc()` do pacote `tictioc`, o maior impacto no tempo foi do cálculo do intervalo BCA devido a ser necessário realizar um Jackknife para tal intervalo.
 
-- Mas ferramentas especializadas são melhores que as do canivete.
+O processo foi rodado na seguinte configuração:
 
-- Proposto por Tukey.
+Memória 16Gb 2400Hz
+Processador AMD Ryzen 5 5600 G 3.9GHz
 
-- É um procedimento não paramétrico pois nenhuma suposição é feita sobre a distribuição dos dados.
+E os tempos do processo para 500000 repetições, com amostras de tamanho 20, 40, 60, ..., 200, e níveis de confiança 0.9, 0.95 e 0.99.
 
-- É facilmente automatizável. Um único algoritmo pode ser escrito tendo como argumentos os dados e a estatística de interesse.
 
-- O método é baseado em amostras de tamanho n−1. Existe a suposição implicita de comportamento suave com o tamanho da amostra.
+| Parte do processo | Tempo (s) |
+|-------------------|-----------|
+| Processo completo | 15344.43  |
+| Método Bootstrap  | 829.43    |
+| IC Normal         | 0.03      |
+| IC Percentil      | 0.03      |
+| IC t-Student      | 0.03      |
+| BCA               | 14513.8   |
+| Gráficos          | 1.18      |
 
-- Ao contrário do bootstrap, é um procedimento determinístico, ou seja, os resultados de um Jackknife sempre serão os mesmos para a mesma amostra.
+<br><br>
 
-O Jackknife é um procedimento do tipo leave-one-out (um caso particular de validação cruzada).
+# 4. Conclusão
 
-Seja x = ($x_1$,…,$x_n$) uma amostra observada, e defina a i-ésima amostra de jackkinfe $x_{(i)}$
-como o subconjunto de x, que “deixa de fora” a i-ésima observação, ou seja,
+O método de reamostragem bootstrap foi capaz de criar estimativas com vício, EQM e erro muito pequenos, mostrando a eficácia da técnica. Quanto aos intervalos, todos contiveram os parâmetros verdadeiros para todos n e todos níveis de confinaça, o tempo computacional dos intervalos percentil, normal e t são bem próximos e aproximadamente zero, já o BCA necessita de muito processamento e tempo computacional para ser criado, os intervalos quando o n é grande são quase os mesmos, por isso deve ser pesado quando o intervalo BCA é necessário, mesmo com uma precisão maior demanda muito mais tempo.
 
+# 5. Referências bibliográficas
 
-$$x_{(i)}= {(x_{i-1},...,x_{i-1},x_{i+1},...,x_{n})}$$ 
+1. Morettin, Pedro Alberto, and Wilton Oliveira Bussab. Estatística básica. Saraiva Educação SA, 2017.
 
-Se $\hat{\theta}=Tn(x)$, então a i-ésima estimativa de Jackknife é $\hat{\theta_{i}} = T_{(n - 1)}(x_{(i)})$,i=1…,n.
-
-Suponha que o parâmetro θ=T(F) é uma função da distribuição F. Se Fn é a função (de distribuição) empírica de uma amostra de F, então o estimador plug-in de θ é $\hat{\theta}=T(Fn)$. Um estimador “plug-in” $\hat{\theta}$ é “suave” (smooth) no sentido de que pequenas mudanças nos dados correspondem a pequenas mudaças em $\hat{\theta}$. Por exemplo, a média amostral é um estimador plug-in para a média populacional, mas a mediana amostral não é um estimador plug-in para a mediana populacional.
-
-Se $\hat{\theta}$ é um estimador “suave” para θ, então
-
-$$\hat{\theta}_{i}^{*} = (F_{n - 1}(x_{(i)}))$$
-
-é chamada de estimativa parcial para θ, e a média das estimativas parciais, ou seja,
-
-$$\hat{\theta}_{i}^{*}= \frac{1}{n}\sum_{i = 1}^{n}\hat{\theta}_{i}^{*}$$
-
-é um estimador pontual para $\hat{\theta}$.
-
-
-O erro-padrão de Jackknife para a estimativa pontual $\hat{\theta}_{.}^{*}$ é portanto
-
-
-$$EPjack = \sqrt{\frac{n-1}{n}\sum_{i=1}^{n}(\hat{\theta}_{(i)}^{*}-\hat{\theta}^{*}_{(.)}})^2$$
-Isso faz com que o algoritmo de Jackknife seja facilmente automatizado, funcionando para qualquer estimador que seja uma função suave dos dados. O termo $\frac{n-1}{n}$ é um fator de correção de viés para as estimativas de Jackknife.
-
-Nesse mesmo sentido, assumindo independência entre os valores $\hat{\theta}_{.}^{*}$, um intervalo de confiança aproximado de 100(1−α)% para θ pode ser definido como
-
-
-$$\hat{\theta}^{*}_{(i)} = \pm t_{\alpha/2,n-1}EPjack$$
-
-## 2.1 - Código Jackknife:
-
-```{r, eval=FALSE}
-# Regressão Logística Binária ---------------------------------------------
-
-
-# Lendo e entendendo o banco de dados -------------------------------------
-
-
-dados <- read.csv('facerecognition.dat', sep = ' ')
-dados
-
-# Entendendo o banco
-str(dados)
-
-dados$match <- as.factor(dados$match)
-
-str(dados)
-
-summary(dados)
-
-levels(dados$match) # Não deu match = categoria de referência
-
-
-# Checagem de pressupostos ------------------------------------------------
-
-## Variável match (y ou dependente)
-## 1. Variável dependente dicotômica (categorias mutuamente exclusivas)
-## 2. Independência das observações (sem medidas repetidas)
-
-# A variável match segue isso
-
-## Construindo o modelo
-names(dados)
-fit0 <- glm(match ~ eyediff + nosecheekdiff + variabilityratio,
-            family = binomial(link = 'logit'), data = dados)
-
-## 3. Ausência de outliers
-
-plot(fit0, which =5) 
-# Todos os pontos estão dentro do intervalo
-# Mas aquele 895 é preocupante
-
-
-# usando pacote
-summary(MASS::stdres(fit0))         # ta fugindo um pouco do -3 e 3
-
-## 4. Ausência de multicolinearidade
-
-cor(dados[,2:4]) # OK, correlações baixas 0.3, 0.18 e 0.19
-
-pairs(dados)
-
-car::vif(fit0)   # Vif é bem baixo, usando um valor seria preocupante acima de 10
-
-## 5. Relaçao linear entre cada Var independente contínua e o lofito da Var dependente
-
- ### Interação entre a VI contínua e o seu log não significativa (teste de Box-Tidwell)
-
-intlog_eyediff <- dados$eyediff          * log(dados$eyediff)
-intlog_noseche <- dados$nosecheekdiff    * log(dados$nosecheekdiff)
-intlog_variabi <- dados$variabilityratio * log(dados$variabilityratio)
-
-dados2 <- dados
-dados2$int_eye <- intlog_eyediff 
-dados2$int_nos <- intlog_noseche
-dados2$int_var <- intlog_variabi
-
-fit_interacao <- glm(match ~ ., 
-                     family = binomial(link = 'logit'), data = dados2)
-
-summary(fit_interacao)
-# O Pressuposto foi atendido para as variáveis eyediff e nosecheekdiff, já para variabilityratio a interação foi significativa para o modelo            
-
-# Opção 2: cálculo do logito
-# é calculado como:
-                  # prob   <- predict(mod, type = 'response')
-                  # logito <- log(prob/(1 - prob))
-
-# Ou pega direto do modelo criado
-logito <- fit0$linear.predictors
-
-plot(x = logito, y = dados$eyediff)          # Tem uma linearidade 
-plot(x = logito, y = dados$nosecheekdiff)    # Tem uma linearidade
-plot(x = logito, y = dados$variabilityratio) # Não tem linearidade
-
-
-
-# Modelo 2 ----------------------------------------------------------------
-
-fit2 <- glm(match ~ eyediff + nosecheekdiff,
-            family = binomial(link = 'logit'), data = dados)
-
-plot(fit2, which =5)         # Os pressupostos testados se mantém
-summary(MASS::stdres(fit2))  
-cor(dados[,2:4])
-car::vif(fit2) 
-
-
-
-# Análise do modelo -------------------------------------------------------
-
-## Efeitos gerais
-# Anova(fit2, type = 'II', test = 'Wald')
-
-## Efeitos específicos
-
-summary(fit2) 
-# Todas variáveis são muito significativas, tendo ***
-# Lembrando que a relação é ao não match
-
-## Razões de chance (odds-ratio)
-
-# Via log-likelihood, com IC de 95%
-exp(cbind(Odds= coef(fit2), confint(fit2)))
-
-# Via erro padrão, com IC de 95%
-exp(cbind(Odds = coef(fit2), confint.default(fit2)))
-
-#Pelas Odds
-# há  uma diminuição da chance de estar na categoria match = 1
-# quando o eyediff e nosecheekdiff aumentam, visto que são < 1
-
-
-# Desempenho do modelo ----------------------------------------------------
-
-# AIC
-AIC(fit2, fit0)
-# Testei para ambos mesmo o fit0 não respeitando os pressupostos
-# Iveram AIC igual à 1007
-
-# BIC
-BIC(fit2, fit0)
-# Modelos tiveram BIC semelhante, o fit2 teve BIC de 1022
-
-# se ambos atendessem os pressupostos, poderiamos testar via anova se eles tem diferença
-
-anova(fit2, fit0, test='Chisq') 
-# Tivemos um P-valor = 0.1669, não sendo significativo
-
-# Tabela de classificação
-# install.packages('QuantPsyc')
-QuantPsyc::ClassLog(fit2, dados$match)
-
-
-# Resumindo
-
-summary(fit2)
-
-# As variáveis eyediff e nosecheekdiff são previsores para a variável match
-# O aumento de ambas variáveis fazem diminuir a chance de match ser 1
-# Eyediff       - Odds: 1.466857e-04, Ic 95%: [4.8710e-06, 4.2845e-03]
-# Nosecheekdiff - Odds: 1.925857e-06, Ic 95%: [1.6574e-07, 2.2376e-05]
-```
-
+2. Givens, G. H., & Hoeting, J. A. (2012). Computational Statistics. John Wiley & Sons.
