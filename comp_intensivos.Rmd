@@ -1,0 +1,882 @@
+---
+title: 
+date: "`r Sys.Date()`"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 2
+    toc_float: true
+    theme: simplex
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(eval = FALSE)
+```
+
+## 1.Introdução:
+
+## 1.1Método Bootstrap:
+
+- Os métodos de Bootstrap são uma classe de métodos de Monte Carlo não paramétricos, que estimam a distribuição de uma população por reamostragem.
+
+- Métodos de reamostragem tratam a amostra observada como uma população finita
+
+&emsp;&emsp;&emsp;&emsp;&emsp;A distribuição da população finita representada pela amostra observada, pode ser entendida como uma pseudo-população, com características similares às da população original
+
+- Amostra aleatórias são geradas (reamostragem) a partir da amostra original, para estimar características populacionais e fazer inferência sobre a população amostrada
+
+&emsp;&emsp;&emsp;&emsp;&emsp;Através da reamostragem, a distribuição amostral de uma estatística pode ser estimada, e as propriedades de um estimador podem então ser calculadas através do erro padrão e cálculos de viés
+
+- Métodos de bootstrap são utilizados quando a distribuição da população alvo não é especificada (ou conhecida), e a amostra é a única informação disponível.
+
+
+**Visão Geral:**
+
+- Boostrap foi apresentado de forma sistematizada por Efron (1979).
+
+- O termo bootstrap foi usado por Efron (1979) com o mesmo espírito que Tukey (1958) usou Jackknife (canivete suiço).
+
+- O método já havia sido usado em circustâncias anteriores.
+
+- Bootstrap é um método de reamostragem que pode usado para avaliar propriedades de estimadores e fazer inferência.
+
+- Bootstrap é um método de Monte Carlo pois usa a distribuição empírica dos dados como se fosse a verdadeira distribuição.
+
+- Principais aplicações de bootstrap:
+
+&emsp;&emsp;&emsp;&emsp;&emsp; Avaliar propriedades da distribuição de estimadores para seleção, ajuste de vício, etc.
+
+&emsp;&emsp;&emsp;&emsp;&emsp;Substituir ou aprimorar a adequação de abordagens assintóticas em amostras pequenas: intervalos de confiança, testes de hipótese.
+
+
+**Funcionamento:**
+
+- Considere uma amostra de observações iid $x_{i}$, i=1,…,n
+
+- Usando a distribuição empírica, cada valor $x_{i}$ tem igual probabilidade 1/n de ocorrer.
+
+- Considere que θ seja um parâmetro de interesse que dispõe de um estimador $\hat{\theta}=f($X_1$,...,$X_n$)$.
+
+- Uma amostra bootstrap é um conjunto de valores extraídos ao acaso com reposição da amostra original.
+
+- A estimativa de θ na b-ésima reamostra bootstrap é $\hat{\theta}^{b}$.
+
+**Problema:**
+
+Se o estimador de $\hat{\theta}$ for diferente da média, é necessário fazer o uso de
+métodos numéricos para encontrar se$\hat{f}(\theta^{*})$.
+
+**Estimativa do erro padrão de um estimador:**
+
+A estimativa do erro padrão de um estimador $\hat{\theta}$ via bootstrap é o desvio padrão amostral das estimativas de bootstrap $\hat{\theta}^{(1)}$,.....,$\hat{\theta}^{(b)}$
+
+$$se\hat{\theta^{*}}=\sqrt{\frac{1}{B - 1}\sum_{b = 1}^{B}(\hat{\theta}^{(b)} - \bar{\hat{\theta}}^{*}})$$
+<br><br>
+
+## 1.2 - Código do Bootstrap:
+
+**Visualizando o banco:**
+
+```{r, eval = T, echo = T}
+abalone <- read.csv('Abalone.txt')
+
+names(abalone) <- c('sex', 'length', 'diameter', 'height', 'whole_weight', 'shucked_weight', 'viscera_weight', 'shell_weight', 'rings')
+
+head(abalone)
+
+```
+
+<br><br>
+Foi criada uma função para calcular as estimativas Bootstrap e também os Intervalos de Confiança normal 
+t-student, pecentil e bca. Isso com a possibilidade de variar o número de repetições, os tamanhos de amostra, o banco, os níveis de confiança e a semente.
+
+```{r, eval = T}
+
+# calcular nessa função também os ics e retornar uma lista
+Bootstrap <- function(N,enes,var,banco= abalone, conf.level=0.95, seed=NULL)
+{
+  est_bootstrap <- data.frame('media' = rep(NA, 10), 'mediana' = NA, 'erro_media' = NA, 'erro_mediana' = NA, 'vicio_media' = NA, 'vicio_mediana' = NA, 'EQM_media' = NA, 'EQM_mediana' = NA,  'n' = NA)
+  
+  ICs_media   <-  data.frame('Tipo_IC' = rep(NA,40*length(conf.level)), 'LI'= NA, 'LS' = NA, n = NA)
+  ICs_mediana <-  data.frame('Tipo_IC' = rep(NA,40*length(conf.level)), 'LI'= NA, 'LS' = NA, n = NA)
+    
+    
+  media_global   <- mean(banco[[var]])
+  mediana_global <- median(banco[[var]])
+  
+  if(!is.null(seed)){set.seed(seed)}
+  
+  
+  amostras <- lapply(enes, banco = banco, var = var, N = N,
+                     FUN = function(x, banco, var,N){
+                       index <- round(runif(x*N, 0.5, 0.4 + length(banco[[var]])))
+                       amostra <- banco[[var]][index]
+                       return(amostra)
+                     }
+  )
+
+  
+  for(i in enes)
+  {
+    
+    estatistiscas <- lapply(split(amostras[[i/enes[1]]], ceiling(seq_along(amostras[[i/enes[1]]])/i)), 
+                            FUN = function(x)
+                            {return(c(mean(x), median(x)))})
+    
+    Jackknife  <- function(amostras) {
+      estatisticas <- lapply(amostras, function(x) {
+        amostra_jk <- lapply(seq_along(x), function(j) x[-j])
+        
+        mean_jk <- sapply(amostra_jk, mean)
+        median_jk <- sapply(amostra_jk, median)
+        
+        diffs <- list(
+          media = mean_jk - mean(mean_jk),
+          mediana = median_jk - median(median_jk)
+        )
+        
+        return(diffs)
+      })
+      
+      return(estatisticas)
+    }
+    
+    JK_estimativas <- Jackknife(split(amostras[[i/enes[1]]], ceiling(seq_along(amostras[[i/enes[1]]])/i)))
+    
+
+    estatistiscas <- do.call(rbind, estatistiscas)
+
+    medias_jk    <- lapply(JK_estimativas, function(x) x$media)
+    medianas_jk  <- lapply(JK_estimativas, function(x) x$mediana)
+
+    valores <-  c(mean(estatistiscas[,1]), median(estatistiscas[,2]), # media e mediana
+                  sd(estatistiscas[,1]), # Erro media
+                  sd(estatistiscas[,2]), # Erro mediana
+                  (mean(estatistiscas[,1]) - media_global),           # Vicio media
+                  (median(estatistiscas[,2]) - mediana_global),       # Vicio mediana
+                  (mean(estatistiscas[,1]) - media_global)^2,         # Eqm media
+                 (median(estatistiscas[,2]) - mediana_global)^2,       # Eqm mediana
+                  i
+                  
+    )
+
+    est_bootstrap[i/enes[1], ] <- valores
+    
+    # Intervalos de confiança ---
+    for(conf_index in 1:length(conf.level)){
+      
+      conf <- conf.level[conf_index]
+        # Normal
+        IC_norm_mean   <- c(valores[1] - qnorm(conf)*valores[3], valores[1] + qnorm(conf)*valores[3])
+        IC_norm_median <- c(valores[2] - qnorm(conf)*valores[4], valores[2] + qnorm(conf)*valores[4])
+        
+        # Percentil Reverso (básico)
+        Q1 <- quantile(estatistiscas[,1], c(1-conf, conf))
+        Q2 <- quantile(estatistiscas[,2], c(1-conf, conf))
+        
+        IC_perc_mean <-   c(2*valores[1] - Q1[[2]], 2*valores[1] - Q1[[1]])
+        IC_perc_median <- c(2*valores[2] - Q2[[2]], 2*valores[2] - Q2[[1]])
+        
+        # t-Student ---
+        
+        IC_t_mean   <- c(valores[1] - qt(conf, i -1 )*valores[3],
+                         valores[1] + qt(conf, i -1)*valores[3])
+        IC_t_median <- c(valores[2] - qt(conf, i -1)*valores[4],
+                         valores[2] + qt(conf, i -1)*valores[4])   
+        
+        # BCA ---
+        
+        # Calculo do gama
+        gama_sup     <- lapply(medias_jk, FUN = function(x){sum(x^3)})
+        gama_inf     <- lapply(medias_jk, FUN = function(x){sum(x^2)^1.5 * 6})
+        
+        gama_sup     <- do.call(rbind, gama_sup)
+        gama_inf     <- do.call(rbind, gama_inf)
+        gama_inf[gama_inf == 0] <- 1
+        gama_media   <- mean(gama_sup/gama_inf)
+        
+        
+        gama_sup     <- lapply(medianas_jk, FUN = function(x){sum(x^3)})
+        gama_inf     <- lapply(medianas_jk, FUN = function(x){sum(x^2)^1.5 * 6})
+        
+        gama_sup     <- do.call(rbind, gama_sup)
+        gama_inf     <- do.call(rbind, gama_inf)
+        gama_inf[gama_inf == 0] <- 1
+
+        gama_mediana <- mean(gama_sup/gama_inf)
+        
+
+        
+        # calculo do intervalo
+        z0_media   <- qnorm(mean(estatistiscas[,1] <= media_global))
+        z0_mediana <- qnorm(mean(estatistiscas[,2] <= mediana_global))
+        
+        z1 <- qnorm((1 - conf)/2)
+        z2 <- qnorm(conf + (1-conf)/2)
+        
+        alpha1_media <- pnorm(z0_media + (z0_media + z1)/(1- gama_media*(z0_media + z1)))
+        alpha2_media <- pnorm(z0_media + (z0_media + z2)/(1- gama_media*(z0_media + z2)))
+        
+        alpha1_mediana <- pnorm(z0_mediana + (z0_mediana + z1)/(1- gama_mediana*(z0_mediana + z1)))
+        alpha2_mediana <- pnorm(z0_mediana + (z0_mediana + z2)/(1- gama_mediana*(z0_mediana + z2)))
+      
+        # BCA
+        IC_bca_mean   <- quantile(estatistiscas[,1], c(alpha1_media, alpha2_media))
+        IC_bca_median <- quantile(estatistiscas[,2], c(alpha1_mediana, alpha2_mediana))
+        
+        # jutando todos
+        
+        norm_name <- paste0('Normal_', conf)
+        perc_name <- paste0('Percentil_', conf)
+        t_name <- paste0('t_', conf)
+        bca_name <- paste0('BCA_', conf)
+        
+        ICs_media[i/enes[1] + (conf_index -1)*40, ]       <- c(norm_name,IC_norm_mean,i)
+        ICs_media[i/enes[1] +10 + (conf_index -1)*40, ]   <- c(perc_name,IC_perc_mean,i)   
+        ICs_media[i/enes[1] +20 + (conf_index -1)*40, ]   <- c(t_name,IC_t_mean,i)
+        ICs_media[i/enes[1] +30 + (conf_index -1)*40, ]   <- c(bca_name,IC_bca_mean,i)
+        
+        ICs_mediana[i/enes[1] + (conf_index -1)*40, ]       <- c(norm_name,IC_norm_median,i)
+        ICs_mediana[i/enes[1] +10 + (conf_index -1)*40, ]   <- c(perc_name,IC_perc_median,i)   
+        ICs_mediana[i/enes[1] +20 + (conf_index -1)*40, ]   <- c(t_name,IC_t_median,i)
+        ICs_mediana[i/enes[1] +30 + (conf_index -1)*40, ]   <- c(bca_name,IC_bca_median,i)
+    }
+    
+    jpeg(filename = paste0('img/tend_central_', i, '.jpg' ), width = 1080, height = 720, quality = 100)
+    par(mfrow = c(1,2), mar = c(5, 5, 4, 6))
+    hist(estatistiscas[,1], xlab = paste('Valores da média com n=', i), 
+         ylab = 'Frequência', main = '',  prob = TRUE)
+    abline(v = mean(estatistiscas[,1]), col = 'red', lty = 2)
+    hist(estatistiscas[,2], xlab = paste('Valores da mediana com n=', i), 
+         ylab = 'Frequência', main = '', prob = TRUE)
+    abline(v = median(estatistiscas[,2]), col = 'blue', lty = 2)
+    
+    legend(x = 0, y= 0,
+           legend = c('Estimativa da Média (Bootstrap)', 'Estimativa da Mediana (Bootstrap)'),
+           col = c('red','blue'),
+           lty = 2,
+           bty = 'n',
+           xpd = T)
+    
+    par(mfrow = c(1,1))
+    
+    dev.off()
+    
+    cat('Repetição:',i/enes[1], '\n')
+    
+    
+  }
+  
+  output <- list('estimativas' = est_bootstrap, 'IC_media' = ICs_media, 'IC_mediana' = ICs_mediana)
+  
+  return(output)
+  
+}
+
+```
+
+
+## 1.3 - Explicando o código parte a parte:
+
+Primeiramente, no código abaixo, foi preparado a saída de dados, com três dataframes e calculado a média e a mediana global.
+
+```{r, eval = F}
+Bootstrap <- function(N,enes,var,banco= abalone, conf.level=0.95, seed=NULL)
+{
+  est_bootstrap <- data.frame('media' = rep(NA, 10), 'mediana' = NA, 'erro_media' = NA, 'erro_mediana' = NA, 'vicio_media' = NA, 'vicio_mediana' = NA, 'EQM_media' = NA, 'EQM_mediana' = NA,  'n' = NA)
+  
+  ICs_media   <-  data.frame('Tipo_IC' = rep(NA,40*length(conf.level)), 'LI'= NA, 'LS' = NA, n = NA)
+  ICs_mediana <-  data.frame('Tipo_IC' = rep(NA,40*length(conf.level)), 'LI'= NA, 'LS' = NA, n = NA)
+    
+    
+  media_global   <- mean(banco[[var]])
+  mediana_global <- median(banco[[var]])
+
+```
+
+
+Na parte do código abaixo, caso na função tenha sido passado uma seed, é definido a seed e após isso são feitas as amostras Bootstrap, que são calculadas todas de uma vez baseadas em uma uniforme discretizada.
+
+```{r}
+if(!is.null(seed)){set.seed(seed)}
+  
+  
+  amostras <- lapply(enes, banco = banco, var = var, N = N,
+                     FUN = function(x, banco, var,N){
+                       index <- round(runif(x*N, 0.5, 0.4 + length(banco[[var]])))
+                       amostra <- banco[[var]][index]
+                       return(amostra)
+                     }
+  )
+```
+
+Nesta parte, o `for` percorre todos os tamanhos de amostras passados, a variável `estatisticas` pega as amostras calculadas anteriormente, as divide baseada no n e retorna a média e a mediana dessas amostras. O jackknife será usado para cálculo do intervalo BCA, pegando as amostras, retirando um valor, calculando as estatísticas e fazendo a diferença entre a média da amostra e a média das médias jackknife, após isso, é feito o mesmo para a mediana, o processo é repetido devolvendo o valor retirado e retirando outro.
+
+```{r}
+for(i in enes)
+  {
+    
+    estatistiscas <- lapply(split(amostras[[i/enes[1]]], ceiling(seq_along(amostras[[i/enes[1]]])/i)), 
+                            FUN = function(x)
+                            {return(c(mean(x), median(x)))})
+    
+    Jackknife  <- function(amostras) {
+      estatisticas <- lapply(amostras, function(x) {
+        amostra_jk <- lapply(seq_along(x), function(j) x[-j])
+        
+        mean_jk <- sapply(amostra_jk, mean)
+        median_jk <- sapply(amostra_jk, median)
+        
+        diffs <- list(
+          media = mean_jk - mean(mean_jk),
+          mediana = median_jk - median(median_jk)
+        )
+        
+        return(diffs)
+      })
+      
+      return(estatisticas)
+    }
+  
+```
+
+
+A variável `JK_estimativas`, aplica a função criada anteriormente, `estatisticas` junta o retorno do lapply `estatisticas` anterior, `medias_jk` e `medianas_jk` são as estatisticas jackknife, em valores organizamos a saída de dados e o adicionamos no dataframe `est_boostrap`.  
+
+```{r}
+JK_estimativas <- Jackknife(split(amostras[[i/enes[1]]], ceiling(seq_along(amostras[[i/enes[1]]])/i)))
+    
+
+    estatistiscas <- do.call(rbind, estatistiscas)
+
+    medias_jk    <- lapply(JK_estimativas, function(x) x$media)
+    medianas_jk  <- lapply(JK_estimativas, function(x) x$mediana)
+
+    valores <-  c(mean(estatistiscas[,1]), median(estatistiscas[,2]), # media e mediana
+                  sd(estatistiscas[,1]), # Erro media
+                  sd(estatistiscas[,2]), # Erro mediana
+                  (mean(estatistiscas[,1]) - media_global),           # Vicio media
+                  (median(estatistiscas[,2]) - mediana_global),       # Vicio mediana
+                  (mean(estatistiscas[,1]) - media_global)^2,         # Eqm media
+                 (median(estatistiscas[,2]) - mediana_global)^2,       # Eqm mediana
+                  i
+                  
+    )
+
+    est_bootstrap[i/enes[1], ] <- valores
+    
+```
+
+
+O `for` passa pelas confianças e calcula os intervalos de confiança que são calculados baseados nas suas próprias fórmulas e são adicionados aos dataframes criados inicialmente.
+
+```{r}
+# Intervalos de confiança ---
+    for(conf_index in 1:length(conf.level)){
+      
+      conf <- conf.level[conf_index]
+        # Normal
+        IC_norm_mean   <- c(valores[1] - qnorm(conf)*valores[3], valores[1] + qnorm(conf)*valores[3])
+        IC_norm_median <- c(valores[2] - qnorm(conf)*valores[4], valores[2] + qnorm(conf)*valores[4])
+        
+        # Percentil Reverso (básico)
+        Q1 <- quantile(estatistiscas[,1], c(1-conf, conf))
+        Q2 <- quantile(estatistiscas[,2], c(1-conf, conf))
+        
+        IC_perc_mean <-   c(2*valores[1] - Q1[[2]], 2*valores[1] - Q1[[1]])
+        IC_perc_median <- c(2*valores[2] - Q2[[2]], 2*valores[2] - Q2[[1]])
+        
+        # t-Student ---
+        
+        IC_t_mean   <- c(valores[1] - qt(conf, i -1 )*valores[3],
+                         valores[1] + qt(conf, i -1)*valores[3])
+        IC_t_median <- c(valores[2] - qt(conf, i -1)*valores[4],
+                         valores[2] + qt(conf, i -1)*valores[4])   
+        
+        # BCA ---
+        
+        # Calculo do gama
+        gama_sup     <- lapply(medias_jk, FUN = function(x){sum(x^3)})
+        gama_inf     <- lapply(medias_jk, FUN = function(x){sum(x^2)^1.5 * 6})
+        
+        gama_sup     <- do.call(rbind, gama_sup)
+        gama_inf     <- do.call(rbind, gama_inf)
+        gama_inf[gama_inf == 0] <- 1
+        gama_media   <- mean(gama_sup/gama_inf)
+        
+        
+        gama_sup     <- lapply(medianas_jk, FUN = function(x){sum(x^3)})
+        gama_inf     <- lapply(medianas_jk, FUN = function(x){sum(x^2)^1.5 * 6})
+        
+        gama_sup     <- do.call(rbind, gama_sup)
+        gama_inf     <- do.call(rbind, gama_inf)
+        gama_inf[gama_inf == 0] <- 1
+
+        gama_mediana <- mean(gama_sup/gama_inf)
+        
+
+        
+        # calculo do intervalo
+        z0_media   <- qnorm(mean(estatistiscas[,1] <= media_global))
+        z0_mediana <- qnorm(mean(estatistiscas[,2] <= mediana_global))
+        
+        z1 <- qnorm((1 - conf)/2)
+        z2 <- qnorm(conf + (1-conf)/2)
+        
+        alpha1_media <- pnorm(z0_media + (z0_media + z1)/(1- gama_media*(z0_media + z1)))
+        alpha2_media <- pnorm(z0_media + (z0_media + z2)/(1- gama_media*(z0_media + z2)))
+        
+        alpha1_mediana <- pnorm(z0_mediana + (z0_mediana + z1)/(1- gama_mediana*(z0_mediana + z1)))
+        alpha2_mediana <- pnorm(z0_mediana + (z0_mediana + z2)/(1- gama_mediana*(z0_mediana + z2)))
+      
+        # BCA
+        IC_bca_mean   <- quantile(estatistiscas[,1], c(alpha1_media, alpha2_media))
+        IC_bca_median <- quantile(estatistiscas[,2], c(alpha1_mediana, alpha2_mediana))
+        
+        # jutando todos
+        
+        norm_name <- paste0('Normal_', conf)
+        perc_name <- paste0('Percentil_', conf)
+        t_name <- paste0('t_', conf)
+        bca_name <- paste0('BCA_', conf)
+        
+        ICs_media[i/enes[1] + (conf_index -1)*40, ]       <- c(norm_name,IC_norm_mean,i)
+        ICs_media[i/enes[1] +10 + (conf_index -1)*40, ]   <- c(perc_name,IC_perc_mean,i)   
+        ICs_media[i/enes[1] +20 + (conf_index -1)*40, ]   <- c(t_name,IC_t_mean,i)
+        ICs_media[i/enes[1] +30 + (conf_index -1)*40, ]   <- c(bca_name,IC_bca_mean,i)
+        
+        ICs_mediana[i/enes[1] + (conf_index -1)*40, ]       <- c(norm_name,IC_norm_median,i)
+        ICs_mediana[i/enes[1] +10 + (conf_index -1)*40, ]   <- c(perc_name,IC_perc_median,i)   
+        ICs_mediana[i/enes[1] +20 + (conf_index -1)*40, ]   <- c(t_name,IC_t_median,i)
+        ICs_mediana[i/enes[1] +30 + (conf_index -1)*40, ]   <- c(bca_name,IC_bca_median,i)
+    }
+    
+```
+
+
+Foram feitos os histogramas das estimativas Bootstrap e após isso, foi retornado os dataframes criados.
+
+```{r}
+jpeg(filename = paste0('img/tend_central_', i, '.jpg' ), width = 1080, height = 720, quality = 100)
+    par(mfrow = c(1,2), mar = c(5, 5, 4, 6))
+    hist(estatistiscas[,1], xlab = paste('Valores da média com n=', i), 
+         ylab = 'Frequência', main = '',  prob = TRUE)
+    abline(v = mean(estatistiscas[,1]), col = 'red', lty = 2)
+    hist(estatistiscas[,2], xlab = paste('Valores da mediana com n=', i), 
+         ylab = 'Frequência', main = '', prob = TRUE)
+    abline(v = median(estatistiscas[,2]), col = 'blue', lty = 2)
+    
+    legend(x = 0, y= 0,
+           legend = c('Estimativa da Média (Bootstrap)', 'Estimativa da Mediana (Bootstrap)'),
+           col = c('red','blue'),
+           lty = 2,
+           bty = 'n',
+           xpd = T)
+    
+    par(mfrow = c(1,1))
+    
+    dev.off()
+    
+    cat('Repetição:',i/enes[1], '\n')
+    
+    
+  }
+  
+  output <- list('estimativas' = est_bootstrap, 'IC_media' = ICs_media, 'IC_mediana' = ICs_mediana)
+  
+  return(output)
+  
+}
+
+```
+
+Uso da função para a variável `diameter`
+
+```{r}
+# diametrer ----------------------------------------------------------------
+
+# Não foi possível usar N= 1.000.000 por falta de RAM, foi utilizado 500000 repetições
+diameter <- Bootstrap(500000, seq(20,200,20), 'diameter', conf.level =  c(0.9, 0.95, 0.99), seed = 9999)
+save(diameter, file='diameter.RData')
+```
+
+Todos os intervalos de confiança contiveram o verdadeiro valor do parâmetro
+
+```{r, eval = F}
+load('.\Rdatas\diameter.RData')
+
+as.numeric(diameter$IC_media$LI[1:40]) < mean(abalone$diameter) & mean(abalone$diameter) < as.numeric(diameter$IC_media$LS[1:40])
+# OU seja com 0.9 de confiança todos intervalos contém o parametro verdadeiro da media
+
+as.numeric(diameter$IC_media$LI[41:80]) < mean(abalone$diameter) & mean(abalone$diameter) < as.numeric(diameter$IC_media$LS[41:80])
+# OU seja com 0.95 de confiança todos intervalos contém o parametro verdadeiro da media
+
+as.numeric(diameter$IC_media$LI[81:120]) < mean(abalone$diameter) & mean(abalone$diameter) < as.numeric(diameter$IC_media$LS[81:120])
+# OU seja com 0.99 de confiança todos intervalos contém o parametro verdadeiro da media
+
+as.numeric(diameter$IC_mediana$LI[1:40]) < median(abalone$diameter) &
+  mean(abalone$diameter) < as.numeric(diameter$IC_mediana$LS[1:40])
+# OU seja com 0.9 de confiança todos intervalos contém o parametro verdadeiro da mediana
+
+as.numeric(diameter$IC_mediana$LI[41:80]) < median(abalone$diameter) &
+  mean(abalone$diameter) < as.numeric(diameter$IC_mediana$LS[41:80])
+# OU seja com 0.95 de confiança todos intervalos contém o parametro verdadeiro da mediana
+
+as.numeric(diameter$IC_mediana$LI[81:120]) < median(abalone$diameter) &
+  mean(abalone$diameter) < as.numeric(diameter$IC_mediana$LS[81:120])
+# OU seja com 0.99 de confiança todos intervalos contém o parametro verdadeiro da mediana
+
+
+```
+
+
+Uso da função para a variável `Whole.weight`
+
+```{r}
+# Whole.weight ------------------------------------------------------------
+
+
+
+whole.weight <- Bootstrap(500000, seq(20,200,20), 'whole_weight', conf.level =  c(0.9, 0.95, 0.99), seed = 9999)
+save(whole.weight, file='whole.weight.RData')
+```
+
+
+Todos os intervalos de confiança contiveram o verdadeiro valor do parâmetro
+
+
+```{r}
+
+as.numeric(whole.weight$IC_media$LI[1:40]) < mean(abalone$whole_weight) & mean(abalone$whole_weight) < as.numeric(whole.weight$IC_media$LS[1:40])
+# OU seja com 0.9 de confiança todos intervalos contém o parametro verdadeiro da media
+
+as.numeric(whole.weight$IC_media$LI[41:80]) < mean(abalone$whole_weight) & mean(abalone$whole_weight) < as.numeric(whole.weight$IC_media$LS[41:80])
+# OU seja com 0.95 de confiança todos intervalos contém o parametro verdadeiro da media
+
+as.numeric(whole.weight$IC_media$LI[81:120]) < mean(abalone$whole_weight) & mean(abalone$whole_weight) < as.numeric(whole.weight$IC_media$LS[81:120])
+# OU seja com 0.99 de confiança todos intervalos contém o parametro verdadeiro da media
+
+
+as.numeric(whole.weight$IC_mediana$LI[1:40]) < median(abalone$whole_weight) &
+  mean(abalone$whole_weight) < as.numeric(whole.weight$IC_mediana$LS[1:40])
+# OU seja com 0.9 de confiança todos intervalos contém o parametro verdadeiro da mediana
+
+as.numeric(whole.weight$IC_mediana$LI[41:80]) < median(abalone$whole_weight) &
+  mean(abalone$whole_weight) < as.numeric(whole.weight$IC_mediana$LS[41:80])
+# OU seja com 0.95 de confiança todos intervalos contém o parametro verdadeiro da mediana
+
+as.numeric(whole.weight$IC_mediana$LI[81:120]) < median(abalone$whole_weight) &
+  mean(abalone$whole_weight) < as.numeric(whole.weight$IC_mediana$LS[81:120])
+# OU seja com 0.99 de confiança todos intervalos contém o parametro verdadeiro da mediana
+
+```
+
+
+
+
+```{r}
+# Análise das medidas Dianóstico ------------------------------------------
+
+load('Rdatas\diameter.Rdata')
+load('Rdatas\whole.weight.Rdata')
+load('Rdatas\length.Rdata')
+
+diameter$estimativas
+whole.weight$estimativas
+length$estimativas
+
+grafico_diag <- function(var, ylab, ylim=NULL, linha_0 = TRUE, arquivo = 'lixo')
+{
+  
+  medida <- sub('.*_', '',var)
+  
+  
+  jpeg(paste0('img/', arquivo, '.jpg'), 1080, 720, quality = 100,)
+  
+  if(!is.null(ylim)){
+    plot(x= whole.weight$estimativas$n, whole.weight$estimativas[[var]],
+         type = 'b', col = '#004586', lty = 2, lwd = 2, ylim = ylim,
+         main = paste(ylab, 'Bootstrap para',medida, 'por tamanho de amostra'),
+         xlab = 'Tamanho de amostra',
+         ylab = ylab)}
+  else{
+    plot(x= whole.weight$estimativas$n, whole.weight$estimativas[[var]],
+         type = 'b', col = '#004586', lty = 2, lwd = 2,
+         main = paste(ylab, 'Bootstrap para',medida, 'por tamanho de amostra'),
+         xlab = 'Tamanho de amostra',
+         ylab = ylab)}
+  
+    lines(x= diameter$estimativas$n,y=diameter$estimativas[[var]], type = 'b', col = '#FFD320', lty = 2, lwd = 2)
+    lines(x= length$estimativas$n,y=length$estimativas[[var]],     type = 'b', col = '#579D1C', lty = 2, lwd = 2)
+    if(linha_0 == TRUE) abline(h = 0, lty = 2, lwd = 2, col = 'red')
+    legend(x = "topright",          # Position
+           legend = c('Whole.Weight',
+                      'Length',
+                      'Diameter'),  
+           lty = 2,           # Line types
+           col = c('#004586', '#579D1C', '#FFD320'),           # Line colors
+           lwd = 2)  
+  
+
+    dev.off()
+    if(!is.null(ylim)){
+      plot(x= whole.weight$estimativas$n, whole.weight$estimativas[[var]],
+           type = 'b', col = '#004586', lty = 2, lwd = 2, ylim = ylim,
+           main = paste(ylab, 'Bootstrap para',medida, 'por tamanho de amostra'),
+           xlab = 'Tamanho de amostra',
+           ylab = ylab)}
+    else{
+      plot(x= whole.weight$estimativas$n, whole.weight$estimativas[[var]],
+           type = 'b', col = '#004586', lty = 2, lwd = 2,
+           main = paste(ylab, 'Bootstrap para',medida, 'por tamanho de amostra'),
+           xlab = 'Tamanho de amostra',
+           ylab = ylab)}
+    
+    lines(x= diameter$estimativas$n,y=diameter$estimativas[[var]], type = 'b', col = '#FFD320', lty = 2, lwd = 2)
+    lines(x= length$estimativas$n,y=length$estimativas[[var]],     type = 'b', col = '#579D1C', lty = 2, lwd = 2)
+    if(linha_0 == TRUE) abline(h = 0, lty = 2, lwd = 2, col = 'red')
+    legend(x = "topright",          # Position
+           legend = c('Whole.Weight',
+                      'Length',
+                      'Diameter'),  
+           lty = 2,           # Line types
+           col = c('#004586', '#579D1C', '#FFD320'),           # Line colors
+           lwd = 2)  
+}
+```
+
+
+
+
+```{r}
+grafico_diag(var = 'vicio_media',ylab = 'Vício', arquivo = 'vicio_media', ylim=c(-2e-4,3e-4))
+# O vício para media é baixo, e conforme o n aumenta ele se aproxima de zero
+grafico_diag(var = 'vicio_mediana',ylab = 'Vício', ylim = c(-0.0025, 0.0008), arquivo = 'vicio_mediana')
+# O vício para mediana é baixo, e conforme o n aumenta ele se aproxima de zero
+
+grafico_diag(var = 'erro_media',ylab = 'Erro', arquivo = 'erro_media', ylim = c(0,0.11))
+# Erro para media é baixo, e conforme o n aumenta ele diminui
+grafico_diag(var = 'erro_mediana',ylab = 'Erro', ylim = c(0,0.15), arquivo = 'erro_mediana')
+# Erro para mediana é baixo, e conforme o n aumenta ele diminui
+grafico_diag(var = 'EQM_media',ylab = 'EQM', arquivo = 'EQM_media', ylim= c(0, 5.5e-8))
+# O EQM da media é minusculo, aproximadamente 0.0000006 para whole.weight em n = 20, conforme n aumenta ele estabiliza em 0
+grafico_diag(var = 'EQM_mediana',ylab = 'EQM', ylim = c(0, 7e-6), arquivo = 'EQM_mediana')
+# O EQM da mediana é minusculo, aproximadamente 0.000006, mesmo para n =20, conforme n aumenta ele estabiliza em 0
+
+```
+
+## 1.4 - Gráficos relacionados ao Modelo Bootstrap:
+
+![](img\EQM_media.jpg){}
+![](img\EQM_mediana.jpg){}
+![](img\erro_media.jpg){}
+![](img\erro_mediana.jpg){}
+
+## 2 - Método Jackknife:
+
+
+- Canivete suiço.
+
+- Equipado com várias ferramentas, fácil transporte.
+
+- Mas ferramentas especializadas são melhores que as do canivete.
+
+- Proposto por Tukey.
+
+- É um procedimento não paramétrico pois nenhuma suposição é feita sobre a distribuição dos dados.
+
+- É facilmente automatizável. Um único algoritmo pode ser escrito tendo como argumentos os dados e a estatística de interesse.
+
+- O método é baseado em amostras de tamanho n−1. Existe a suposição implicita de comportamento suave com o tamanho da amostra.
+
+- Ao contrário do bootstrap, é um procedimento determinístico, ou seja, os resultados de um Jackknife sempre serão os mesmos para a mesma amostra.
+
+O Jackknife é um procedimento do tipo leave-one-out (um caso particular de validação cruzada).
+
+Seja x = ($x_1$,…,$x_n$) uma amostra observada, e defina a i-ésima amostra de jackkinfe $x_{(i)}$
+como o subconjunto de x, que “deixa de fora” a i-ésima observação, ou seja,
+
+
+$$x_{(i)}= {(x_{i-1},...,x_{i-1},x_{i+1},...,x_{n})}$$ 
+
+Se $\hat{\theta}=Tn(x)$, então a i-ésima estimativa de Jackknife é $\hat{\theta_{i}} = T_{(n - 1)}(x_{(i)})$,i=1…,n.
+
+Suponha que o parâmetro θ=T(F) é uma função da distribuição F. Se Fn é a função (de distribuição) empírica de uma amostra de F, então o estimador plug-in de θ é $\hat{\theta}=T(Fn)$. Um estimador “plug-in” $\hat{\theta}$ é “suave” (smooth) no sentido de que pequenas mudanças nos dados correspondem a pequenas mudaças em $\hat{\theta}$. Por exemplo, a média amostral é um estimador plug-in para a média populacional, mas a mediana amostral não é um estimador plug-in para a mediana populacional.
+
+Se $\hat{\theta}$ é um estimador “suave” para θ, então
+
+$$\hat{\theta}_{i}^{*} = (F_{n - 1}(x_{(i)}))$$
+
+é chamada de estimativa parcial para θ, e a média das estimativas parciais, ou seja,
+
+$$\hat{\theta}_{i}^{*}= \frac{1}{n}\sum_{i = 1}^{n}\hat{\theta}_{i}^{*}$$
+
+é um estimador pontual para $\hat{\theta}$.
+
+
+O erro-padrão de Jackknife para a estimativa pontual $\hat{\theta}_{.}^{*}$ é portanto
+
+
+$$EPjack = \sqrt{\frac{n-1}{n}\sum_{i=1}^{n}(\hat{\theta}_{(i)}^{*}-\hat{\theta}^{*}_{(.)}})^2$$
+Isso faz com que o algoritmo de Jackknife seja facilmente automatizado, funcionando para qualquer estimador que seja uma função suave dos dados. O termo $\frac{n-1}{n}$ é um fator de correção de viés para as estimativas de Jackknife.
+
+Nesse mesmo sentido, assumindo independência entre os valores $\hat{\theta}_{.}^{*}$, um intervalo de confiança aproximado de 100(1−α)% para θ pode ser definido como
+
+
+$$\hat{\theta}^{*}_{(i)} = \pm t_{\alpha/2,n-1}EPjack$$
+
+## 2.1 - Código Jackknife:
+
+```{r, eval=FALSE}
+# Regressão Logística Binária ---------------------------------------------
+
+
+# Lendo e entendendo o banco de dados -------------------------------------
+
+
+dados <- read.csv('facerecognition.dat', sep = ' ')
+dados
+
+# Entendendo o banco
+str(dados)
+
+dados$match <- as.factor(dados$match)
+
+str(dados)
+
+summary(dados)
+
+levels(dados$match) # Não deu match = categoria de referência
+
+
+# Checagem de pressupostos ------------------------------------------------
+
+## Variável match (y ou dependente)
+## 1. Variável dependente dicotômica (categorias mutuamente exclusivas)
+## 2. Independência das observações (sem medidas repetidas)
+
+# A variável match segue isso
+
+## Construindo o modelo
+names(dados)
+fit0 <- glm(match ~ eyediff + nosecheekdiff + variabilityratio,
+            family = binomial(link = 'logit'), data = dados)
+
+## 3. Ausência de outliers
+
+plot(fit0, which =5) 
+# Todos os pontos estão dentro do intervalo
+# Mas aquele 895 é preocupante
+
+
+# usando pacote
+summary(MASS::stdres(fit0))         # ta fugindo um pouco do -3 e 3
+
+## 4. Ausência de multicolinearidade
+
+cor(dados[,2:4]) # OK, correlações baixas 0.3, 0.18 e 0.19
+
+pairs(dados)
+
+car::vif(fit0)   # Vif é bem baixo, usando um valor seria preocupante acima de 10
+
+## 5. Relaçao linear entre cada Var independente contínua e o lofito da Var dependente
+
+ ### Interação entre a VI contínua e o seu log não significativa (teste de Box-Tidwell)
+
+intlog_eyediff <- dados$eyediff          * log(dados$eyediff)
+intlog_noseche <- dados$nosecheekdiff    * log(dados$nosecheekdiff)
+intlog_variabi <- dados$variabilityratio * log(dados$variabilityratio)
+
+dados2 <- dados
+dados2$int_eye <- intlog_eyediff 
+dados2$int_nos <- intlog_noseche
+dados2$int_var <- intlog_variabi
+
+fit_interacao <- glm(match ~ ., 
+                     family = binomial(link = 'logit'), data = dados2)
+
+summary(fit_interacao)
+# O Pressuposto foi atendido para as variáveis eyediff e nosecheekdiff, já para variabilityratio a interação foi significativa para o modelo            
+
+# Opção 2: cálculo do logito
+# é calculado como:
+                  # prob   <- predict(mod, type = 'response')
+                  # logito <- log(prob/(1 - prob))
+
+# Ou pega direto do modelo criado
+logito <- fit0$linear.predictors
+
+plot(x = logito, y = dados$eyediff)          # Tem uma linearidade 
+plot(x = logito, y = dados$nosecheekdiff)    # Tem uma linearidade
+plot(x = logito, y = dados$variabilityratio) # Não tem linearidade
+
+
+
+# Modelo 2 ----------------------------------------------------------------
+
+fit2 <- glm(match ~ eyediff + nosecheekdiff,
+            family = binomial(link = 'logit'), data = dados)
+
+plot(fit2, which =5)         # Os pressupostos testados se mantém
+summary(MASS::stdres(fit2))  
+cor(dados[,2:4])
+car::vif(fit2) 
+
+
+
+# Análise do modelo -------------------------------------------------------
+
+## Efeitos gerais
+# Anova(fit2, type = 'II', test = 'Wald')
+
+## Efeitos específicos
+
+summary(fit2) 
+# Todas variáveis são muito significativas, tendo ***
+# Lembrando que a relação é ao não match
+
+## Razões de chance (odds-ratio)
+
+# Via log-likelihood, com IC de 95%
+exp(cbind(Odds= coef(fit2), confint(fit2)))
+
+# Via erro padrão, com IC de 95%
+exp(cbind(Odds = coef(fit2), confint.default(fit2)))
+
+#Pelas Odds
+# há  uma diminuição da chance de estar na categoria match = 1
+# quando o eyediff e nosecheekdiff aumentam, visto que são < 1
+
+
+# Desempenho do modelo ----------------------------------------------------
+
+# AIC
+AIC(fit2, fit0)
+# Testei para ambos mesmo o fit0 não respeitando os pressupostos
+# Iveram AIC igual à 1007
+
+# BIC
+BIC(fit2, fit0)
+# Modelos tiveram BIC semelhante, o fit2 teve BIC de 1022
+
+# se ambos atendessem os pressupostos, poderiamos testar via anova se eles tem diferença
+
+anova(fit2, fit0, test='Chisq') 
+# Tivemos um P-valor = 0.1669, não sendo significativo
+
+# Tabela de classificação
+# install.packages('QuantPsyc')
+QuantPsyc::ClassLog(fit2, dados$match)
+
+
+# Resumindo
+
+summary(fit2)
+
+# As variáveis eyediff e nosecheekdiff são previsores para a variável match
+# O aumento de ambas variáveis fazem diminuir a chance de match ser 1
+# Eyediff       - Odds: 1.466857e-04, Ic 95%: [4.8710e-06, 4.2845e-03]
+# Nosecheekdiff - Odds: 1.925857e-06, Ic 95%: [1.6574e-07, 2.2376e-05]
+```
+
