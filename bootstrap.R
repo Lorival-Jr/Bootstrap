@@ -39,9 +39,9 @@ b <- quantile(a, c(0.5,0.95))
 
 
 
-# Função pika -------------------------------------------------------------
+# Função Bootstrap ----------------------------------------------------------
 
-# calcular nessa função também os ics e retornar uma lista
+# Função faz o método bootstrap, já calcula os intervalos de confiança normal, t-student, percentil reverso e BCA e também salva os gráficos.
 Bootstrap <- function(N,enes,var,banco= abalone, conf.level=0.95, seed=NULL)
 {
   est_bootstrap <- data.frame('media' = rep(NA, 10), 'mediana' = NA, 'erro_media' = NA, 'erro_mediana' = NA, 'vicio_media' = NA, 'vicio_mediana' = NA, 'EQM_media' = NA, 'EQM_mediana' = NA,  'n' = NA)
@@ -229,8 +229,6 @@ Bootstrap <- function(N,enes,var,banco= abalone, conf.level=0.95, seed=NULL)
 
 
 
-library(parallel)
-cl <- makeCluster(detectCores() - 2)
 
 # diametrer ----------------------------------------------------------------
 
